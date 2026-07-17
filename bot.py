@@ -9,14 +9,21 @@ import json
 import asyncio
 import tempfile
 import subprocess
+import logging
 from pathlib import Path
 
 import httpx
 from telegram import Update, InlineKeyboardButton, InlineKeyboardMarkup
 from telegram.constants import ChatAction, ParseMode
+from telegram.error import Conflict
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, CallbackQueryHandler,
     ContextTypes, filters,
+)
+
+logging.basicConfig(
+    level=logging.INFO,
+    format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
 )
 
 # ---------- Config ----------
@@ -362,6 +369,17 @@ async def handle_link(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
 async def health(update: Update, ctx: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✅ Bot v2.0 alive!")
 
+async def error_handler(update: object, context: ContextTypes.DEFAULT_TYPE) -> None:
+    """Handle errors gracefully, especially Conflict from duplicate polling."""
+    logger = logging.getLogger(__name__)
+
+    if isinstance(context.error, Conflict):
+        logger.warning(f"Conflict error (duplicate polling): {context.error}")
+        # Don't re-raise; let polling retry automatically
+        return
+
+    logger.error(f"Update {update} caused error {context.error}")
+
 def main():
     app = Application.builder().token(BOT_TOKEN).build()
     app.add_handler(CommandHandler("start", start))
@@ -369,6 +387,7 @@ def main():
     app.add_handler(CommandHandler("ping", health))
     app.add_handler(CallbackQueryHandler(verify_join, pattern="^verify_join$"))
     app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_link))
+    app.add_error_handler(error_handler)
     print("🤖 Ruxxys Shorts Bot v2.0 started...")
     app.run_polling(allowed_updates=Update.ALL_TYPES)
 
