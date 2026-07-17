@@ -83,26 +83,25 @@ async def extract_audio(video: Path, out_dir: Path) -> Path:
 async def transcribe_groq(audio: Path) -> dict:
     """Groq Whisper with WORD-level timestamps for karaoke subs."""
     async with httpx.AsyncClient(timeout=300) as client:
+        # Read file content asynchronously
         with open(audio, "rb") as f:
-            files = {"file": (audio.name, f, "audio/mpeg")}
-            data = {
-                "model": WHISPER_MODEL,
-                "response_format": "verbose_json",
-                "timestamp_granularities[]": "word",
-                "timestamp_granularities[]": "segment",
-            }
-            # httpx dedupes dict keys — use list
-            data_list = [
-                ("model", WHISPER_MODEL),
-                ("response_format", "verbose_json"),
-                ("timestamp_granularities[]", "word"),
-                ("timestamp_granularities[]", "segment"),
-            ]
-            r = await client.post(
-                "https://api.groq.com/openai/v1/audio/transcriptions",
-                headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
-                files=files, data=data_list,
-            )
+            file_content = f.read()
+        
+        files = {
+            "file": (audio.name, file_content, "audio/mpeg")
+        }
+        data_list = [
+            ("model", WHISPER_MODEL),
+            ("response_format", "verbose_json"),
+            ("timestamp_granularities[]", "word"),
+            ("timestamp_granularities[]", "segment"),
+        ]
+        r = await client.post(
+            "https://api.groq.com/openai/v1/audio/transcriptions",
+            headers={"Authorization": f"Bearer {GROQ_API_KEY}"},
+            files=files,
+            data=data_list,
+        )
         r.raise_for_status()
         return r.json()
 
